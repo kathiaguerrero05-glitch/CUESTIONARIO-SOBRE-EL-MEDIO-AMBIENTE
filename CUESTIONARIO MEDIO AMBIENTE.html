@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoMatch - Empareja Conceptos Ambientales</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        eco: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                            accent: '#f59e0b',
+                            amber: '#f59e0b',
+                            teal: '#0d9488'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #ecfdf5 0%, #e0f2fe 50%, #fef3c7 100%);
+            min-height: 100vh;
+        }
+
+        /* Estilos de selección / estado */
+        .card-selected {
+            border-color: #f59e0b !important;
+            background-color: #fef3c7 !important;
+            transform: scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(245, 158, 11, 0.25);
+        }
+
+        .card-matched {
+            border-color: #22c55e !important;
+            background-color: #dcfce7 !important;
+            opacity: 0.85;
+            cursor: default !important;
+        }
+
+        .card-wrong {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+            border-color: #ef4444 !important;
+            background-color: #fee2e2 !important;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* Modal Overlay */
+        .modal-bg {
+            background-color: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(6px);
+        }
+
+        /* Smooth Card Pulse */
+        @keyframes pulse-gentle {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+        }
+
+        .pulse-effect {
+            animation: pulse-gentle 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-slate-800 antialiased p-3 md:p-6">
+
+    <!-- Header & Dashboard -->
+    <header class="max-w-5xl mx-auto w-full mb-6">
+        <div class="bg-white/80 backdrop-blur-md rounded-2xl p-4 md:p-6 shadow-xl border border-white/60 flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-eco-600 to-eco-400 p-3 rounded-2xl text-white shadow-lg shadow-eco-500/30">
+                    <i class="fa-solid font-bold fa-leaf text-2xl md:text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-eco-800 via-eco-600 to-eco-accent bg-clip-text text-transparent">EcoMatch</h1>
+                    <p class="text-xs md:text-sm text-slate-500 font-medium">Aprende emparejando conceptos sobre el medio ambiente</p>
+                </div>
+            </div>
+
+            <!-- Panel Estadístico -->
+            <div class="flex items-center gap-3 md:gap-6 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80 w-full md:w-auto justify-around">
+                <div class="text-center">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider font-bold block">Puntos</span>
+                    <span id="score" class="text-xl md:text-2xl font-extrabold text-eco-600">0</span>
+                </div>
+                <div class="h-8 w-px bg-slate-200"></div>
+                <div class="text-center">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider font-bold block">Intentos</span>
+                    <span id="attempts" class="text-xl md:text-2xl font-extrabold text-slate-700">0</span>
+                </div>
+                <div class="h-8 w-px bg-slate-200"></div>
+                <div class="text-center">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider font-bold block">Parejas</span>
+                    <span id="matches" class="text-xl md:text-2xl font-extrabold text-eco-amber">0/8</span>
+                </div>
+            </div>
+
+            <!-- Botón Reiniciar -->
+            <button id="btn-restart-top" onclick="resetGame()" class="w-full md:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition flex items-center justify-center gap-2 border border-slate-200">
+                <i class="fa-solid fa-rotate-right"></i>
+                <span>Reiniciar</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Indicador de Instrucciones -->
+    <div class="max-w-5xl mx-auto w-full mb-4 px-2 text-center md:text-left flex flex-col md:flex-row items-center justify-between gap-2">
+        <p class="text-sm font-semibold text-slate-600 flex items-center gap-2 bg-white/60 px-4 py-2 rounded-full border border-white/80 shadow-sm">
+            <i class="fa-solid fa-circle-info text-eco-500"></i>
+            <span>Haz clic en un <b>concepto</b> (columna izquierda) y luego en su <b>definición</b> (columna derecha).</span>
+        </p>
+        <span id="feedback-msg" class="text-sm font-bold h-6 transition-all duration-300"></span>
+    </div>
+
+    <!-- Tablero de Juego -->
+    <main class="max-w-5xl mx-auto w-full flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-8">
+        
+        <!-- Columna Conceptos -->
+        <div class="flex flex-col gap-3">
+            <h2 class="text-lg font-bold text-eco-800 flex items-center gap-2 px-1">
+                <i class="fa-solid fa-lightbulb text-eco-amber"></i> Conceptos
+            </h2>
+            <div id="concepts-container" class="flex flex-col gap-3">
+                <!-- Se cargan dinámicamente -->
+            </div>
+        </div>
+
+        <!-- Columna Definiciones -->
+        <div class="flex flex-col gap-3">
+            <h2 class="text-lg font-bold text-eco-800 flex items-center gap-2 px-1">
+                <i class="fa-solid fa-book-open text-eco-teal"></i> Definiciones
+            </h2>
+            <div id="definitions-container" class="flex flex-col gap-3">
+                <!-- Se cargan dinámicamente -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="max-w-5xl mx-auto w-full text-center text-xs text-slate-500 py-4 border-t border-slate-200/60">
+        <p>Cuestionario Interactivo de Educación Ambiental • Diseñado para promover la sostenibilidad</p>
+    </footer>
+
+    <!-- Modal de Felicitación / Fin del Juego -->
+    <div id="victory-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-white/80 transform scale-90 transition-transform duration-300 id-modal-card text-center">
+            
+            <div class="w-20 h-20 bg-gradient-to-tr from-eco-500 to-eco-300 rounded-full flex items-center justify-center mx-auto mb-4 text-white text-4xl shadow-lg shadow-eco-500/40 pulse-effect">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+
+            <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-1">¡Excelente Trabajo! 🌿</h2>
+            <p id="modal-subtitle" class="text-slate-500 text-sm mb-6">Demostraste un gran conocimiento sobre el medio ambiente.</p>
+
+            <!-- Desglose de resultados -->
+            <div class="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100 flex justify-around">
+                <div>
+                    <span class="text-xs text-slate-400 font-bold block uppercase">Puntaje Final</span>
+                    <span id="modal-score" class="text-2xl font-black text-eco-600">0</span>
+                </div>
+                <div class="h-10 w-px bg-slate-200"></div>
+                <div>
+                    <span class="text-xs text-slate-400 font-bold block uppercase">Intentos</span>
+                    <span id="modal-attempts" class="text-2xl font-black text-slate-700">0</span>
+                </div>
+                <div class="h-10 w-px bg-slate-200"></div>
+                <div>
+                    <span class="text-xs text-slate-400 font-bold block uppercase">Efectividad</span>
+                    <span id="modal-accuracy" class="text-2xl font-black text-eco-amber">0%</span>
+                </div>
+            </div>
+
+            <p id="modal-feedback-text" class="text-sm font-medium text-slate-600 mb-6 bg-eco-50 p-3 rounded-xl border border-eco-100">
+                ¡Eres un verdadero Guardián del Planeta! Sigue aplicando estos conceptos día a día.
+            </p>
+
+            <button onclick="resetGame(); closeModal();" class="w-full py-3.5 px-6 bg-gradient-to-r from-eco-600 to-eco-500 hover:from-eco-700 hover:to-eco-600 text-white font-bold rounded-2xl shadow-lg shadow-eco-600/30 transition transform active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-play"></i>
+                <span>Jugar de nuevo</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Script del Juego -->
+    <script>
+        // Datos de conceptos y definiciones
+        const quizData = [
+            {
+                id: '1',
+                concept: 'Biodiversidad',
+                icon: 'fa-tree',
+                definition: 'Variedad de seres vivos (plantas, animales y microorganismos) que habitan en un ecosistema.'
+            },
+            {
+                id: '2',
+                concept: 'Reciclaje',
+                icon: 'fa-recycle',
+                definition: 'Proceso de transformación de materiales usados o desperdicios en nuevos productos.'
+            },
+            {
+                id: '3',
+                concept: 'Huella de Carbono',
+                icon: 'fa-shoe-prints',
+                definition: 'Medida del impacto de las actividades humanas en la cantidad de gases de efecto invernadero emitidos.'
+            },
+            {
+                id: '4',
+                concept: 'Energías Renovables',
+                icon: 'fa-solar-panel',
+                definition: 'Fuentes de energía inagotables e inagotables derivadas de recursos naturales como el sol o viento.'
+            },
+            {
+                id: '5',
+                concept: 'Cambio Climático',
+                icon: 'fa-temperature-arrow-up',
+                definition: 'Variación global del clima de la Tierra debida a causas naturales y principalmente a la acción humana.'
+            },
+            {
+                id: '6',
+                concept: 'Sostenibilidad',
+                icon: 'fa-hand-holding-heart',
+                definition: 'Capacidad de satisfacer las necesidades actuales sin comprometer los recursos de las futuras generaciones.'
+            },
+            {
+                id: '7',
+                concept: 'Deforestación',
+                icon: 'fa-aids', // icon alternative for forest cut/loss or tree strike
+                iconClass: 'fa-scissors',
+                definition: 'Tala masiva y destrucción de bosques y selvas provocada por la actividad humana.'
+            },
+            {
+                id: '8',
+                concept: 'Efecto Invernadero',
+                icon: 'fa-earth-americas',
+                definition: 'Fenómeno natural donde ciertos gases retienen parte de la energía que el suelo emite al ser calentado por el Sol.'
+            }
+        ];
+
+        // Estado de la aplicación
+        let selectedConcept = null;
+        let selectedDefinition = null;
+        let matchedPairs = 0;
+        let score = 0;
+        let attempts = 0;
+        let isProcessing = false;
+
+        // Elementos DOM
+        const conceptsContainer = document.getElementById('concepts-container');
+        const definitionsContainer = document.getElementById('definitions-container');
+        const scoreEl = document.getElementById('score');
+        const attemptsEl = document.getElementById('attempts');
+        const matchesEl = document.getElementById('matches');
+        const feedbackMsg = document.getElementById('feedback-msg');
+        const victoryModal = document.getElementById('victory-modal');
+
+        // Función para desordenar un arreglo (Fisher-Yates Shuffle)
+        function shuffle(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // Inicializar Juego
+        function initGame() {
+            selectedConcept = null;
+            selectedDefinition = null;
+            matchedPairs = 0;
+            score = 0;
+            attempts = 0;
+            isProcessing = false;
+
+            updateStats();
+            feedbackMsg.textContent = '';
+            
+            // Limpiar contenedores
+            conceptsContainer.innerHTML = '';
+            definitionsContainer.innerHTML = '';
+
+            // Mezclar datos
+            const shuffledConcepts = shuffle(quizData);
+            const shuffledDefinitions = shuffle(quizData);
+
+            // Renderizar Conceptos
+            shuffledConcepts.forEach(item => {
+                const iconName = item.iconClass || item.icon;
+                const card = document.createElement('div');
+                card.className = `card-concept bg-white p-4 rounded-2xl border-2 border-slate-200/80 shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 flex items-center gap-3 select-none`;
+                card.dataset.id = item.id;
+                card.innerHTML = `
+                    <div class="w-10 h-10 rounded-xl bg-eco-100 text-eco-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                        <i class="fa-solid ${iconName}"></i>
+                    </div>
+                    <span class="font-bold text-slate-700 md:text-base text-sm">${item.concept}</span>
+                `;
+                card.addEventListener('click', () => selectConcept(card, item.id));
+                conceptsContainer.appendChild(card);
+            });
+
+            // Renderizar Definiciones
+            shuffledDefinitions.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `card-definition bg-white p-4 rounded-2xl border-2 border-slate-200/80 shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 flex items-start gap-3 select-none`;
+                card.dataset.id = item.id;
+                card.innerHTML = `
+                    <div class="w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center font-bold text-xs mt-0.5 flex-shrink-0 border border-slate-200">
+                        ?
+                    </div>
+                    <p class="text-xs md:text-sm text-slate-600 font-medium leading-relaxed">${item.definition}</p>
+                `;
+                card.addEventListener('click', () => selectDefinition(card, item.id));
+                definitionsContainer.appendChild(card);
+            });
+        }
+
+        // Seleccionar Concepto
+        function selectConcept(element, id) {
+            if (isProcessing || element.classList.contains('card-matched')) return;
+
+            // Deseleccionar anterior si existe
+            document.querySelectorAll('.card-concept').forEach(el => {
+                if (!el.classList.contains('card-matched')) {
+                    el.classList.remove('card-selected');
+                }
+            });
+
+            element.classList.add('card-selected');
+            selectedConcept = { element, id };
+
+            checkMatch();
+        }
+
+        // Seleccionar Definición
+        function selectDefinition(element, id) {
+            if (isProcessing || element.classList.contains('card-matched')) return;
+
+            // Deseleccionar anterior si existe
+            document.querySelectorAll('.card-definition').forEach(el => {
+                if (!el.classList.contains('card-matched')) {
+                    el.classList.remove('card-selected');
+                }
+            });
+
+            element.classList.add('card-selected');
+            selectedDefinition = { element, id };
+
+            checkMatch();
+        }
+
+        // Validar Emparejamiento
+        function checkMatch() {
+            if (!selectedConcept || !selectedDefinition) return;
+
+            isProcessing = true;
+            attempts++;
+
+            const isCorrect = selectedConcept.id === selectedDefinition.id;
+
+            if (isCorrect) {
+                // ACIERTO
+                score += 100;
+                matchedPairs++;
+                
+                showFeedback('¡Correcto! Excelente asociación.', 'text-eco-600');
+
+                selectedConcept.element.classList.remove('card-selected');
+                selectedDefinition.element.classList.remove('card-selected');
+
+                selectedConcept.element.classList.add('card-matched');
+                selectedDefinition.element.classList.add('card-matched');
+
+                // Cambiar el ícono de la definición acertada
+                const defBadge = selectedDefinition.element.querySelector('div');
+                defBadge.className = "w-6 h-6 rounded-full bg-eco-500 text-white flex items-center justify-center font-bold text-xs mt-0.5 flex-shrink-0";
+                defBadge.innerHTML = '<i class="fa-solid fa-check"></i>';
+
+                selectedConcept = null;
+                selectedDefinition = null;
+                isProcessing = false;
+
+                updateStats();
+
+                // Verificar Victoria
+                if (matchedPairs === quizData.length) {
+                    setTimeout(triggerVictory, 600);
+                }
+
+            } else {
+                // ERROR
+                score = Math.max(0, score - 20); // Penalización leve
+                showFeedback('Incorrecto, ¡inténtalo de nuevo!', 'text-red-500');
+
+                selectedConcept.element.classList.add('card-wrong');
+                selectedDefinition.element.classList.add('card-wrong');
+
+                setTimeout(() => {
+                    selectedConcept.element.classList.remove('card-selected', 'card-wrong');
+                    selectedDefinition.element.classList.remove('card-selected', 'card-wrong');
+
+                    selectedConcept = null;
+                    selectedDefinition = null;
+                    isProcessing = false;
+                }, 800);
+
+                updateStats();
+            }
+        }
+
+        // Actualizar estadísticas en UI
+        function updateStats() {
+            scoreEl.textContent = score;
+            attemptsEl.textContent = attempts;
+            matchesEl.textContent = `${matchedPairs}/${quizData.length}`;
+        }
+
+        // Mostrar retroalimentación rápida
+        function showFeedback(msg, colorClass) {
+            feedbackMsg.textContent = msg;
+            feedbackMsg.className = `text-sm font-bold h-6 transition-all duration-300 ${colorClass}`;
+            
+            setTimeout(() => {
+                feedbackMsg.textContent = '';
+            }, 2000);
+        }
+
+        // Disparar Animación de Victoria
+        function triggerVictory() {
+            // Confeti
+            confetti({
+                particleCount: 120,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#22c55e', '#16a34a', '#f59e0b', '#3b82f6']
+            });
+
+            // Llenar Modal
+            document.getElementById('modal-score').textContent = score;
+            document.getElementById('modal-attempts').textContent = attempts;
+            
+            const accuracy = Math.round((quizData.length / attempts) * 100);
+            document.getElementById('modal-accuracy').textContent = `${accuracy}%`;
+
+            // Mensaje según efectividad
+            const feedbackText = document.getElementById('modal-feedback-text');
+            if (accuracy >= 80) {
+                feedbackText.textContent = "¡Sobresaliente! Tienes una conciencia ambiental impresionante. 🌍✨";
+            } else if (accuracy >= 50) {
+                feedbackText.textContent = "¡Muy bien! Conoces la mayoría de conceptos, sigue practicando. 🌱";
+            } else {
+                feedbackText.textContent = "¡Buen intento! Repasa los conceptos para convertirte en un experto eco-amigable. 🌿";
+            }
+
+            // Mostrar Modal
+            victoryModal.classList.remove('opacity-0', 'pointer-events-none');
+            victoryModal.querySelector('.id-modal-card').classList.remove('scale-90');
+            victoryModal.querySelector('.id-modal-card').classList.add('scale-100');
+        }
+
+        // Cerrar Modal
+        function closeModal() {
+            victoryModal.classList.add('opacity-0', 'pointer-events-none');
+            victoryModal.querySelector('.id-modal-card').classList.remove('scale-100');
+            victoryModal.querySelector('.id-modal-card').classList.add('scale-90');
+        }
+
+        // Reiniciar Juego
+        function resetGame() {
+            initGame();
+        }
+
+        // Iniciar al cargar la ventana
+        window.onload = function() {
+            initGame();
+        };
+    </script>
+</body>
+</html>
